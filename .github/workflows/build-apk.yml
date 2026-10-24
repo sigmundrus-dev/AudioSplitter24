@@ -1,3 +1,4 @@
+
 name: Build Audio Splitter APK
 
 on:
@@ -31,16 +32,19 @@ jobs:
       - name: Extract project
         run: |
           unzip -q AudioSplitter-Winamp-GitHub.zip -d extracted
+          find extracted -maxdepth 3 -name settings.gradle -o -name settings.gradle.kts
 
       - name: Build APK
         run: |
-          cd extracted/AudioSplitter-Winamp-GitHub
+          PROJECT_DIR="$(dirname "$(find extracted -maxdepth 4 \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)")"
+          test -n "$PROJECT_DIR"
+          cd "$PROJECT_DIR"
           gradle --no-daemon --stacktrace assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: AudioSplitter-Winamp-APK
-          path: extracted/AudioSplitter-Winamp-GitHub/app/build/outputs/apk/debug/app-debug.apk
+          path: extracted/**/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
