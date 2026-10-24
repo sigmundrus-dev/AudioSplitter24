@@ -31,8 +31,21 @@ jobs:
 
       - name: Extract project
         run: |
-          unzip -q AudioSplitter-Winamp-GitHub.zip -d extracted
-          find extracted -maxdepth 3 -name settings.gradle -o -name settings.gradle.kts
+          
+      - name: Extract project
+        run: |
+          mkdir -p extracted
+          echo "Files in repository:"
+          ls -la
+          ZIP_FILE=$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: ZIP archive not found in repository root"
+            exit 1
+          fi
+          echo "Using archive: $ZIP_FILE"
+          unzip -q "$ZIP_FILE" -d extracted
+          echo "Extracted files:"
+          find extracted -maxdepth 4 -type f | head -n 80
 
       - name: Build APK
         run: |
