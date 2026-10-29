@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'AudioSplitter-Winamp-GitHub.zip'
+      - '*.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -13,51 +13,80 @@ permissions:
 
 jobs:
   build:
+    name: Build Android APK
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK
+      - name: Find and extract project ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ZIP_FILE=""
+
+          for candidate in \
+            "AudioSplitter-Retro-Audio-FIX7.zip" \
+            "AudioSplitter-FIX7-Download.zip" \
+            "AudioSplitter-Winamp-FIX7.zip"
+          do
+            if [ -f "$candidate" ]; then
+              ZIP_FILE="$candidate"
+              break
+            fi
+          done
+
+          if [ -z "$ZIP_FILE" ]; then
+            ZIP_FILE="$(find . -maxdepth 1 -type f -iname '*.zip' -print -quit)"
+          fi
+
+          if [ -z "$ZIP_FILE" ] || [ ! -f "$ZIP_FILE" ]; then
+            echo "ERROR: Project ZIP not found in repository root."
+            exit 1
+          fi
+
+          echo "Using archive: $ZIP_FILE"
+
+          mkdir -p "$RUNNER_TEMP/audio-splitter-src"
+          unzip -q "$ZIP_FILE" -d "$RUNNER_TEMP/audio-splitter-src"
+
+          PROJECT_DIR="$(find "$RUNNER_TEMP/audio-splitter-src" \
+            -type f -name settings.gradle -printf '%h\n' | head -n 1)"
+
+          if [ -z "$PROJECT_DIR" ] || \
+             [ ! -f "$PROJECT_DIR/app/build.gradle" ]; then
+            echo "ERROR: Valid Android project not found in ZIP."
+            exit 1
+          fi
+
+          mkdir -p "$GITHUB_WORKSPACE/_build_project"
+          cp -a "$PROJECT_DIR/." "$GITHUB_WORKSPACE/_build_project/"
+
+          test -f "$GITHUB_WORKSPACE/_build_project/settings.gradle"
+          test -f "$GITHUB_WORKSPACE/_build_project/app/build.gradle"
+
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
-      - name: Set up Gradle
+      - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Extract project
-        run: |
-          
-      - name: Extract project
-        run: |
-          mkdir -p extracted
-          echo "Files in repository:"
-          ls -la
-          ZIP_FILE=$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)
-          if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: ZIP archive not found in repository root"
-            exit 1
-          fi
-          echo "Using archive: $ZIP_FILE"
-          unzip -q "$ZIP_FILE" -d extracted
-          echo "Extracted files:"
-          find extracted -maxdepth 4 -type f | head -n 80
-
-      - name: Build APK
-        run: |
-          PROJECT_DIR="$(dirname "$(find extracted -maxdepth 4 \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)")"
-          test -n "$PROJECT_DIR"
-          cd "$PROJECT_DIR"
-          gradle --no-daemon --stacktrace assembleDebug
+      - name: Build debug APK
+        working-directory: _build_project
+        run: gradle --no-daemon --stacktrace assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AudioSplitter-Winamp-APK
-          path: extracted/**/app/build/outputs/apk/debug/*.apk
+          name: AudioSplitter-FIX7-APK
+          path: _build_project/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
